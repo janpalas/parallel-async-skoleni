@@ -10,6 +10,12 @@ namespace Demo02
     {
         static void Main(string[] args)
         {
+            //Spusti debugger
+            //Debugger.Launch();
+            //Breakpoint v kodu
+            //Debugger.Break();
+
+
             //Zpusoby pro vytvareni tasku:
 
             //Task t1 = Task.Run(() => Console.WriteLine("Test"));
@@ -18,13 +24,16 @@ namespace Demo02
             //Task<int> t3 = new Task<int>();
             //t3.Start();
 
-            Thread.SpinWait(4_000_000);
+            //long durationWithoutTasks = SumWithoutTasks();
+            //long durationTasks = SumWithTasks();
+            //long durationParallel = SumInParallel();
 
-            long durationWithoutTasks = SumWithoutTasks();
-            long durationTasks = SumWithTasks();
-            long durationParallel = SumInParallel();
+            //Console.WriteLine("Ratio: {0}", durationWithoutTasks / (decimal) durationTasks);
 
-            Console.WriteLine("Ratio: {0}", durationWithoutTasks / (decimal) durationTasks);
+
+            //SumMembersWithTasks();
+            CancelingTasks();
+
             Console.ReadLine();
         }
 
@@ -86,10 +95,89 @@ namespace Demo02
             return sw.ElapsedMilliseconds;
         }
 
-        static int Sum(int a, int b)
+
+        private static void SumMembersWithTasks()
         {
-            //Simuluje ze vlakno neco dela (narozdil od Thread.Sleep, ktera vlakno odlozi)
-            Thread.SpinWait(4_000_000);
+            int[] pole = Enumerable.Range(0, 128).ToArray();
+            var sw = Stopwatch.StartNew();
+
+            int result = SumArray(pole);
+            Console.WriteLine("Sum members: {0}, {1}", sw.Elapsed, result);
+        }
+
+        private static void CancelingTasks()
+        {
+            using (var cts = new CancellationTokenSource())
+            {
+                CancellationToken token = cts.Token;
+                cts.CancelAfter(2000);
+                //cts.Cancel();
+
+                var primaryTask = Task.Run(() =>
+                {
+                    token.ThrowIfCancellationRequested();
+                }, token);
+                Thread.Sleep(200);
+
+                Task continuationTask = primaryTask.ContinueWith(t2 => { }, TaskContinuationOptions.OnlyOnCanceled);
+                //Tohle spadne pokud ma continuationTaskNastaveno TaskContinuationOptions.OnlyOnCanceled a zaroven 
+                //primaryTask dobehl v poradku. V tomto pripade je zde continuationTask ve stavu Cancelled
+                continuationTask.Wait();
+
+                Console.WriteLine(continuationTask.Status);
+            }
+        }
+
+        private static int SumArray(int[] pole)
+        {
+            switch (pole.Length)
+            {
+                case 0:
+                    return 0;
+                case 1:
+                    return pole[0];
+                case 2:
+                    return Sum(pole[0], pole[1]);
+                default:
+                    var left = pole.Take(pole.Length / 2).ToArray();
+                    var right = pole.Skip(pole.Length / 2).ToArray();
+                    var leftTask = Task.Run(() => SumArray(left));
+                    var rightTask = Task.Run(() => SumArray(right));
+                    return Sum(leftTask.Result, rightTask.Result);
+            }
+        }
+
+        private static int SumArray(int[] pole, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            switch (pole.Length)
+            {
+                case 0:
+                    return 0;
+                case 1:
+                    return pole[0];
+                case 2:
+                    return Sum(pole[0], pole[1]);
+                default:
+                    var left = pole.Take(pole.Length / 2).ToArray();
+                    var right = pole.Skip(pole.Length / 2).ToArray();
+                    var leftTask = Task.Run(() => SumArray(left, token));
+                    var rightTask = Task.Run(() => SumArray(right, token));
+                    return Sum(leftTask.Result, rightTask.Result, token);
+            }
+        }
+
+        static int Sum(int a, int b, CancellationToken token = default(CancellationToken))
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                //Simuluje ze vlakno neco dela (narozdil od Thread.Sleep, ktera vlakno odlozi)
+                Thread.SpinWait(4_000_000);
+                token.ThrowIfCancellationRequested();
+            }
+
+            
             return a + b;
         }
     }

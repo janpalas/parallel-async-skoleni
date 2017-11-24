@@ -24,6 +24,20 @@ namespace Demo09
 
             await Task.WhenAll();
 
+
+            //lock a Monitor - vice mene ekvivalentni
+
+            //var syncRoot = new object();
+            //lock (syncRoot)
+            //{
+                
+            //}
+
+
+            //Monitor.Enter(syncRoot);
+            //Monitor.Exit(syncRoot);
+            //bool entered = Monitor.TryEnter(syncRoot);
+
             Console.ReadLine();
         }
 
